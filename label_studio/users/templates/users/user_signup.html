@@ -45,12 +45,6 @@
         <option value="owner" {% if not user_form.data.role or user_form.data.role == 'owner' %}selected{% endif %}>Owner</option>
         <option value="contributor" {% if user_form.data.role == 'contributor' %}selected{% endif %}>Contributor</option>
       </select>
-      <!-- Debug: Check if role_options is passed correctly -->
-      {% if role_options %}
-        <small style="color: green;">✓ Role options available: {{ role_options|length }} options</small>
-      {% else %}
-        <small style="color: red;">✗ Role options not found</small>
-      {% endif %}
     </div>
 
     <div>
