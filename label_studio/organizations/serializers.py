@@ -83,7 +83,7 @@ class OrganizationMemberSerializer(DynamicFieldsMixin, serializers.ModelSerializ
         user_role = getattr(member.user, 'role', 'owner')
         role_mapping = {
             'owner': 'OW',        # Owner
-            'contributor': 'AN',  # Annotator (closest to contributor)
+            'contributor': 'CO',  # Contributor
         }
         return role_mapping.get(user_role, 'OW')  # Default to Owner
 
