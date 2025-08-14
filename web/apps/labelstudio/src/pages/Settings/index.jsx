@@ -28,8 +28,8 @@ export const MenuLayout = ({ children, ...routeProps }) => {
         PredictionsSettings,
         isAllowCloudStorage && StorageSettings,
         WebhookPage,
-        canManageContributors && Contributors,
         DangerZone,
+        canManageContributors && Contributors,
       ].filter(Boolean)}
       path={routeProps.match.url}
       children={children}
