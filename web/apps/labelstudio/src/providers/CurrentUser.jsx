@@ -12,7 +12,13 @@ export const CurrentUserProvider = ({ children }) => {
     setIsInProgress(true);
     api
       .callApi("me")
-      .then((user) => setUser(user))
+      .then((user) => {
+        console.log('CurrentUser Debug - User fetched:', user);
+        setUser(user);
+      })
+      .catch((error) => {
+        console.error('CurrentUser Debug - Fetch error:', error);
+      })
       .finally(() => setIsInProgress(false));
   }, []);
 

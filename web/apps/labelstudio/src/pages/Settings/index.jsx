@@ -18,6 +18,14 @@ export const MenuLayout = ({ children, ...routeProps }) => {
   const { user } = useCurrentUser();
   const canManageContributors = user?.role === 'owner';
 
+  // Debug: Log user information to console
+  console.log('Settings MenuLayout Debug:', {
+    user,
+    userRole: user?.role,
+    canManageContributors,
+    ContributorsComponent: Contributors
+  });
+
   return (
     <SidebarMenu
       menuItems={[
