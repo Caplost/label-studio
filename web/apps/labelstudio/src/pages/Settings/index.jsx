@@ -1,5 +1,6 @@
 import { SidebarMenu } from "../../components/SidebarMenu/SidebarMenu";
 import { WebhookPage } from "../WebhookPage/WebhookPage";
+import { Contributors } from "./Contributors";
 import { DangerZone } from "./DangerZone";
 import { GeneralSettings } from "./GeneralSettings";
 import { AnnotationSettings } from "./AnnotationSettings";
@@ -23,6 +24,7 @@ export const MenuLayout = ({ children, ...routeProps }) => {
         PredictionsSettings,
         isAllowCloudStorage && StorageSettings,
         WebhookPage,
+        Contributors,
         DangerZone,
       ].filter(Boolean)}
       path={routeProps.match.url}
@@ -37,6 +39,7 @@ const pages = {
   MachineLearningSettings,
   PredictionsSettings,
   WebhookPage,
+  Contributors,
   DangerZone,
 };
 
