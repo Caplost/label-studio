@@ -146,11 +146,12 @@ export const Contributors = () => {
   }
 
   const handleToggleContributor = useCallback(async (contributorUserId, currentStatus) => {
-    console.log('🔄 Toggle contributor starting:', {
+    console.log('🔄 Toggle contributor project access:', {
       contributorUserId,
-      currentStatus,
       projectId: project?.id,
-      action: currentStatus ? 'REMOVE' : 'ADD'
+      projectTitle: project?.title,
+      currentStatus: currentStatus ? 'HAS ACCESS' : 'NO ACCESS',
+      action: currentStatus ? 'REMOVE ACCESS FROM PROJECT' : 'GRANT ACCESS TO PROJECT'
     });
 
     if (!project?.id) {
@@ -245,7 +246,7 @@ export const Contributors = () => {
   return (
     <div className={cn("simple-settings")}>
       <h1>Contributors</h1>
-      <Label description="Manage contributor access to this project. Contributors with 'Yes' can view and annotate tasks in this project." />
+      <Label description="Manage contributor access to this project. All users with 'Contributor' role are listed below. Use the switch to grant/revoke access to this specific project." />
 
       {error && (
         <ErrorWrapper>
@@ -253,12 +254,23 @@ export const Contributors = () => {
         </ErrorWrapper>
       )}
 
+      <div style={{ marginBottom: 16, fontSize: "0.9em", color: "#666" }}>
+        <strong>Project:</strong> {project?.title || 'Current Project'} (ID: {project?.id})
+        <br />
+        <strong>Total Contributors:</strong> {contributors.length}
+      </div>
+
       {contributors.length === 0 ? (
         <div style={{ marginTop: 24, padding: 20, textAlign: "center", color: "#666" }}>
-          <p>No contributors found in your organization.</p>
+          <p><strong>No contributors found in your organization.</strong></p>
           <p style={{ fontSize: "0.9em", marginTop: 10 }}>
-            To add contributors, first create users with "Contributor" role in your organization.
+            To see contributors here, you need to:
           </p>
+          <ol style={{ textAlign: "left", maxWidth: "400px", margin: "10px auto" }}>
+            <li>Create users with "Contributor" role during signup</li>
+            <li>Ensure they are members of your organization</li>
+            <li>Then you can manage their access to specific projects here</li>
+          </ol>
         </div>
       ) : (
         <div style={{ marginTop: 24 }}>
@@ -273,20 +285,29 @@ export const Contributors = () => {
             borderBottom: "1px solid #e9ecef"
           }}>
             <span>Contributor Email</span>
-            <span>Role</span>
-            <span>Access</span>
+            <span>User Role</span>
+            <span>Project Access</span>
+          </div>
+          
+          <div style={{ 
+            padding: "8px 16px", 
+            backgroundColor: "#e3f2fd", 
+            fontSize: "0.85em", 
+            color: "#1565c0",
+            borderBottom: "1px solid #e9ecef"
+          }}>
+            All users with 'Contributor' role are shown below. Toggle 'Project Access' to grant/revoke access to <strong>{project?.title}</strong>
           </div>
           
           {(() => {
             try {
               return contributors.map((contributor, index) => {
             console.log(`🎯 Rendering contributor ${index}:`, {
-              contributor,
-              hasUser: !!contributor?.user,
-              userId: contributor?.user?.id,
-              userEmail: contributor?.user?.email,
+              email: contributor?.user?.email,
+              name: `${contributor?.user?.first_name || ''} ${contributor?.user?.last_name || ''}`.trim(),
               role: contributor?.role,
-              isMember: contributor?.is_member
+              hasProjectAccess: contributor?.is_member ? 'YES - Can access this project' : 'NO - Cannot access this project',
+              userId: contributor?.user?.id
             });
 
             // Safety check - skip if contributor data is invalid
@@ -341,9 +362,10 @@ export const Contributors = () => {
                   <span style={{ 
                     fontSize: "0.9em", 
                     color: contributor.is_member ? "#28a745" : "#dc3545",
-                    fontWeight: "500"
+                    fontWeight: "500",
+                    minWidth: "60px"
                   }}>
-                    {contributor.is_member ? "Yes" : "No"}
+                    {contributor.is_member ? "✓ Access" : "✗ No Access"}
                   </span>
                 </div>
               </div>
@@ -365,8 +387,13 @@ export const Contributors = () => {
       
       <div style={{ marginTop: 24, padding: 16, backgroundColor: "#f8f9fa", borderRadius: 8 }}>
         <div style={{ fontSize: "0.9em", color: "#666" }}>
-          <strong>Note:</strong> Only users with the "Contributor" role will appear in this list. 
-          Contributors added to this project will have access to all tasks within this project.
+          <strong>How it works:</strong>
+          <ul style={{ marginTop: 8, paddingLeft: 20 }}>
+            <li>This page shows <strong>all users with "Contributor" role</strong> in your organization</li>
+            <li>Use the <strong>switch button</strong> to grant/revoke access to <strong>this specific project</strong></li>
+            <li>Contributors with "✓ Access" can view and annotate <strong>all tasks</strong> in this project</li>
+            <li>Contributors with "✗ No Access" cannot see this project at all</li>
+          </ul>
         </div>
       </div>
     </div>
