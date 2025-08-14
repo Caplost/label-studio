@@ -4,16 +4,30 @@ import { Label } from "../../components/Form";
 import { Spinner } from "../../components/Spinner/Spinner";
 import { ErrorWrapper } from "../../components/Error/Error";
 import { useAPI } from "../../providers/ApiProvider";
+import { useCurrentUser } from "../../providers/CurrentUser";
 import { useProject } from "../../providers/ProjectProvider";
 import { cn } from "../../utils/bem";
 
 export const Contributors = () => {
   const { project } = useProject();
+  const { user } = useCurrentUser();
   const api = useAPI();
   const [contributors, setContributors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(new Set());
   const [error, setError] = useState(null);
+
+  // Only owners can manage contributors
+  if (user?.role !== 'owner') {
+    return (
+      <div className={cn("simple-settings")}>
+        <h1>Contributors</h1>
+        <div style={{ padding: 20, textAlign: "center", color: "#666" }}>
+          You don't have permission to manage contributors. Only organization owners can access this feature.
+        </div>
+      </div>
+    );
+  }
 
   const loadContributors = useCallback(async () => {
     if (!project?.id) return;
