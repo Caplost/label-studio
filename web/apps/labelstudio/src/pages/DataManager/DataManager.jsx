@@ -6,6 +6,7 @@ import { Button, buttonVariant } from "@humansignal/ui";
 import { modal } from "../../components/Modal/Modal";
 import { Space } from "../../components/Space/Space";
 import { useAPI } from "../../providers/ApiProvider";
+import { useCurrentUser } from "../../providers/CurrentUser";
 import { useProject } from "../../providers/ProjectProvider";
 import { useContextProps, useParams } from "../../providers/RoutesProvider";
 import { addCrumb, deleteCrumb } from "../../services/breadrumbs";
@@ -20,13 +21,23 @@ import "./DataManager.scss";
 
 const loadDependencies = () => [import("@humansignal/datamanager"), import("@humansignal/editor")];
 
-const initializeDataManager = async (root, props, params) => {
+const initializeDataManager = async (root, props, params, user) => {
   if (!window.LabelStudio) throw Error("Label Studio Frontend doesn't exist on the page");
   if (!root && root.dataset.dmInitialized) return;
 
   root.dataset.dmInitialized = true;
 
   const { ...settings } = root.dataset;
+
+  // Only allow import for owners, not contributors
+  const canImport = user?.role === 'owner';
+  
+  console.log('🔧 DataManager Import Permission:', {
+    userRole: user?.role,
+    userEmail: user?.email,
+    canImport,
+    projectId: params.id
+  });
 
   const dmConfig = {
     root,
@@ -38,7 +49,7 @@ const initializeDataManager = async (root, props, params) => {
     showPreviews: false,
     apiEndpoints: APIConfig.endpoints,
     interfaces: {
-      import: true,
+      import: canImport, // Only show import for owners
       export: true,
       backButton: false,
       labelingHeader: false,
@@ -65,6 +76,7 @@ export const DataManagerPage = ({ ...props }) => {
   const params = useParams();
   const history = useHistory();
   const api = useAPI();
+  const { user } = useCurrentUser(); // Get current user for role checking
   const { project } = useProject();
   const setContextProps = useContextProps();
   const [crashed, setCrashed] = useState(false);
@@ -91,7 +103,7 @@ export const DataManagerPage = ({ ...props }) => {
         ...params,
         project,
         autoAnnotation: isDefined(interactiveBacked),
-      })));
+      }, user))); // Pass user for role checking
 
     Object.assign(window, { dataManager });
 
@@ -184,7 +196,7 @@ export const DataManagerPage = ({ ...props }) => {
     }
 
     setContextProps({ dmRef: dataManager });
-  }, [projectId]);
+  }, [projectId, user]); // Add user to dependencies since we pass it to initializeDataManager
 
   const destroyDM = useCallback(() => {
     if (dataManagerRef.current) {

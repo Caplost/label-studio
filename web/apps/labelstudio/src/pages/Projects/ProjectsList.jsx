@@ -34,17 +34,26 @@ export const ProjectsList = ({ projects, currentPage, totalItems, loadNextPage, 
   );
 };
 
-export const EmptyProjectsList = ({ openModal }) => {
+export const EmptyProjectsList = ({ openModal, user }) => {
+  const canCreateProject = user?.role !== 'contributor';
+  
   return (
     <Block name="empty-projects-page">
       <Elem name="heidi" tag="img" src={absoluteURL("/static/images/opossum_looking.png")} />
       <Elem name="header" tag="h1">
-        Heidi doesn’t see any projects here!
+        Heidi doesn't see any projects here!
       </Elem>
-      <p>Create one and start labeling your data.</p>
-      <Button onClick={openModal} className="my-8" aria-label="Create new project">
-        Create Project
-      </Button>
+      <p>
+        {canCreateProject 
+          ? "Create one and start labeling your data."
+          : "You don't have access to any projects yet. Contact your organization owner to be added to projects."
+        }
+      </p>
+      {canCreateProject && (
+        <Button onClick={openModal} className="my-8" aria-label="Create new project">
+          Create Project
+        </Button>
+      )}
     </Block>
   );
 };

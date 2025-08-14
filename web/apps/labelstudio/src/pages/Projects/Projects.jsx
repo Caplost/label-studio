@@ -5,6 +5,7 @@ import { Button } from "@humansignal/ui";
 import { Oneof } from "../../components/Oneof/Oneof";
 import { Spinner } from "../../components/Spinner/Spinner";
 import { ApiContext } from "../../providers/ApiProvider";
+import { useCurrentUser } from "../../providers/CurrentUser";
 import { useContextProps } from "../../providers/RoutesProvider";
 import { Block, Elem } from "../../utils/bem";
 import { CreateProject } from "../CreateProject/CreateProject";
@@ -22,6 +23,7 @@ const getCurrentPage = () => {
 
 export const ProjectsPage = () => {
   const api = React.useContext(ApiContext);
+  const { user } = useCurrentUser();
   const abortController = useAbortController();
   const [projectsList, setProjectsList] = React.useState([]);
   const [networkState, setNetworkState] = React.useState(null);
@@ -110,8 +112,8 @@ export const ProjectsPage = () => {
   React.useEffect(() => {
     // there is a nice page with Create button when list is empty
     // so don't show the context button in that case
-    setContextProps({ openModal, showButton: projectsList.length > 0 });
-  }, [projectsList.length]);
+    setContextProps({ openModal, showButton: projectsList.length > 0, user });
+  }, [projectsList.length, user]);
 
   return (
     <Block name="projects-page">
@@ -129,7 +131,7 @@ export const ProjectsPage = () => {
               pageSize={defaultPageSize}
             />
           ) : (
-            <EmptyProjectsList openModal={openModal} />
+            <EmptyProjectsList openModal={openModal} user={user} />
           )}
           {modal && <CreateProject onClose={closeModal} />}
         </Elem>
@@ -157,8 +159,10 @@ ProjectsPage.routes = ({ store }) => [
     },
   },
 ];
-ProjectsPage.context = ({ openModal, showButton }) => {
-  if (!showButton) return null;
+ProjectsPage.context = ({ openModal, showButton, user }) => {
+  // Don't show button if explicitly disabled or user is a contributor
+  if (!showButton || user?.role === 'contributor') return null;
+  
   return (
     <Button onClick={openModal} size="small" aria-label="Create new project">
       Create

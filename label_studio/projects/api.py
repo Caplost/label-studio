@@ -27,12 +27,22 @@ from ml.serializers import MLBackendSerializer
 from projects.functions.next_task import get_next_task
 from projects.functions.stream_history import get_label_stream_history
 from projects.functions.utils import recalculate_created_annotations_and_labels_from_scratch
-from projects.models import Project, ProjectImport, ProjectManager, ProjectReimport, ProjectSummary
+from projects.models import Project, ProjectImport, ProjectManager, ProjectMember, ProjectReimport, ProjectSummary
+from projects.permissions import (
+    CanManageProjectContributors, 
+    CanViewProject, 
+    can_create_project,
+    can_import_tasks,
+    get_accessible_projects_for_user,
+    is_project_owner
+)
 from projects.serializers import (
     GetFieldsSerializer,
+    ProjectContributorListSerializer,
     ProjectCountsSerializer,
     ProjectImportSerializer,
     ProjectLabelConfigSerializer,
+    ProjectMemberSerializer,
     ProjectModelVersionExtendedSerializer,
     ProjectReimportSerializer,
     ProjectSerializer,
@@ -244,9 +254,13 @@ class ProjectListAPI(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
         filter = serializer.validated_data.get('filter')
-        projects = Project.objects.filter(organization=self.request.user.active_organization).order_by(
-            F('pinned_at').desc(nulls_last=True), '-created_at'
-        )
+        
+        # Apply role-based filtering
+        projects = get_accessible_projects_for_user(
+            self.request.user, 
+            self.request.user.active_organization
+        ).order_by(F('pinned_at').desc(nulls_last=True), '-created_at')
+        
         if filter in ['pinned_only', 'exclude_pinned']:
             projects = projects.filter(pinned_at__isnull=filter == 'exclude_pinned')
         return ProjectManager.with_counts_annotate(projects, fields=fields).prefetch_related('members', 'created_by')
@@ -257,8 +271,13 @@ class ProjectListAPI(generics.ListCreateAPIView):
         return context
 
     def perform_create(self, ser):
+        # Check if user can create projects
+        if not can_create_project(self.request.user):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Only owners can create projects')
+            
         try:
-            ser.save(organization=self.request.user.active_organization)
+            ser.save(organization=self.request.user.active_organization, created_by=self.request.user)
         except IntegrityError as e:
             if str(e) == 'UNIQUE constraint failed: project.title, project.created_by_id':
                 raise ProjectExistException(
@@ -425,7 +444,13 @@ class ProjectAPI(generics.RetrieveUpdateDestroyAPIView):
         serializer = GetFieldsSerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
-        return Project.objects.with_counts(fields=fields).filter(organization=self.request.user.active_organization)
+        
+        # Apply role-based filtering
+        accessible_projects = get_accessible_projects_for_user(
+            self.request.user, 
+            self.request.user.active_organization
+        )
+        return Project.objects.with_counts(fields=fields).filter(id__in=accessible_projects.values_list('id', flat=True))
 
     def get(self, request, *args, **kwargs):
         return super(ProjectAPI, self).get(request, *args, **kwargs)
@@ -782,6 +807,15 @@ class ProjectTaskListAPI(GetParentObjectMixin, generics.ListCreateAPIView, gener
 
     def get(self, *args, **kwargs):
         return super(ProjectTaskListAPI, self).get(*args, **kwargs)
+        
+    def perform_create(self, serializer):
+        # Check if user can import tasks
+        if not can_import_tasks(self.request.user):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Only owners can import tasks')
+            
+        project = self.parent_object
+        serializer.save(project=project)
 
     @extend_schema(exclude=True)
     def post(self, *args, **kwargs):
@@ -904,3 +938,117 @@ class ProjectModelVersions(generics.RetrieveAPIView):
         count = project.delete_predictions(model_version=model_version)
 
         return Response(data=count)
+
+
+class ProjectContributorListAPI(GetParentObjectMixin, generics.ListAPIView):
+    """API to list contributors available for a project with their membership status"""
+    parser_classes = (JSONParser,)
+    permission_required = all_permissions.projects_view
+    permission_classes = api_settings.DEFAULT_PERMISSION_CLASSES + [CanManageProjectContributors]
+    serializer_class = ProjectContributorListSerializer
+    parent_queryset = Project.objects.all()
+    
+    def get_queryset(self):
+        project = self.parent_object
+        organization = project.organization
+        
+        # Get all contributors in the organization using the correct relationship
+        from users.models import User
+        from organizations.models import OrganizationMember
+        
+        # Get contributor user IDs from organization members
+        contributor_user_ids = OrganizationMember.objects.filter(
+            organization=organization,
+            user__role='contributor',
+            deleted_at__isnull=True  # Only active members
+        ).values_list('user_id', flat=True)
+        
+        # Get users and annotate with project membership status
+        from django.db.models import Case, When, Value, BooleanField
+        contributors = User.objects.filter(
+            id__in=contributor_user_ids
+        ).annotate(
+            is_member=Case(
+                When(
+                    project_memberships__project=project,
+                    project_memberships__enabled=True,
+                    then=Value(True)
+                ),
+                default=Value(False),
+                output_field=BooleanField()
+            )
+        ).distinct()
+        
+        return contributors
+
+    def list(self, request, *args, **kwargs):
+        try:
+            queryset = self.get_queryset()
+            serializer_data = []
+            
+            for user in queryset:
+                serializer_data.append({
+                    'user': {
+                        'id': user.id,
+                        'email': user.email,
+                        'first_name': user.first_name,
+                        'last_name': user.last_name,
+                    },
+                    'is_member': getattr(user, 'is_member', False),
+                    'role': user.role
+                })
+            
+            return Response(serializer_data)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in ProjectContributorListAPI: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch contributors', 'detail': str(e)}, 
+                status=500
+            )
+
+
+class ProjectMemberListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
+    """API to manage project members"""
+    parser_classes = (JSONParser,)
+    permission_required = all_permissions.projects_change
+    permission_classes = api_settings.DEFAULT_PERMISSION_CLASSES + [CanManageProjectContributors]
+    serializer_class = ProjectMemberSerializer
+    parent_queryset = Project.objects.all()
+    
+    def get_queryset(self):
+        project = self.parent_object
+        return ProjectMember.objects.filter(project=project)
+    
+    def perform_create(self, serializer):
+        project = self.parent_object
+        serializer.save(project=project)
+
+
+class ProjectMemberDetailAPI(GetParentObjectMixin, generics.RetrieveUpdateDestroyAPIView):
+    """API to manage individual project member"""
+    parser_classes = (JSONParser,)
+    permission_required = all_permissions.projects_change
+    permission_classes = api_settings.DEFAULT_PERMISSION_CLASSES + [CanManageProjectContributors]
+    serializer_class = ProjectMemberSerializer
+    parent_queryset = Project.objects.all()
+    
+    def get_queryset(self):
+        project = self.parent_object
+        return ProjectMember.objects.filter(project=project)
+    
+    def get_object(self):
+        project = self.parent_object
+        member_pk = self.kwargs.get('member_pk')
+        
+        # Try to find by user_id first (for easier frontend integration)
+        try:
+            return ProjectMember.objects.get(project=project, user_id=member_pk)
+        except ProjectMember.DoesNotExist:
+            # Fallback to member_id
+            try:
+                return ProjectMember.objects.get(project=project, id=member_pk)
+            except ProjectMember.DoesNotExist:
+                from django.http import Http404
+                raise Http404("Project member not found")

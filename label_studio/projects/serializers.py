@@ -27,7 +27,7 @@ from label_studio_sdk.label_interface.control_tags import (
     TimeSeriesLabelsTag,
     VideoRectangleTag,
 )
-from projects.models import Project, ProjectImport, ProjectOnboarding, ProjectReimport, ProjectSummary
+from projects.models import Project, ProjectImport, ProjectMember, ProjectOnboarding, ProjectReimport, ProjectSummary
 from rest_flex_fields import FlexFieldsModelSerializer
 from rest_framework import serializers
 from rest_framework.serializers import SerializerMethodField
@@ -409,3 +409,21 @@ class GetFieldsSerializer(serializers.Serializer):
     def validate_filter(self, value):
         if value in ['all', 'pinned_only', 'exclude_pinned']:
             return value
+
+
+class ProjectMemberSerializer(serializers.ModelSerializer):
+    """Serializer for project members"""
+    user = UserSimpleSerializer(read_only=True)
+    user_id = serializers.IntegerField(write_only=True)
+    
+    class Meta:
+        model = ProjectMember
+        fields = ['id', 'user', 'user_id', 'project', 'enabled', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'project', 'created_at', 'updated_at']
+
+
+class ProjectContributorListSerializer(serializers.Serializer):
+    """Serializer for listing contributors available for a project"""
+    user = UserSimpleSerializer(read_only=True)
+    is_member = serializers.BooleanField(read_only=True)
+    role = serializers.CharField(read_only=True)
