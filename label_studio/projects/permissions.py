@@ -91,3 +91,13 @@ class CanViewProject(BasePermission):
     
     def has_object_permission(self, request, view, obj):
         return can_view_project(request.user, obj)
+
+
+class ProjectImportPermission(BasePermission):
+    """Permission class to check if user can import tasks to projects"""
+    
+    def has_permission(self, request, view):
+        return can_import_tasks(request.user)
+    
+    def has_object_permission(self, request, view, obj):
+        return can_import_tasks(request.user)
