@@ -103,6 +103,7 @@ class BaseUserSerializer(FlexFieldsModelSerializer):
             'active_organization_meta',
             'allow_newsletters',
             'date_joined',
+            'role',  # Add role field for access control
         )
 
 
