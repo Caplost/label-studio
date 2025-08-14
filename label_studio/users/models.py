@@ -27,6 +27,12 @@ for r in range(YEAR_START, (datetime.datetime.now().year + 1)):
 
 year = models.IntegerField(_('year'), choices=YEAR_CHOICES, default=datetime.datetime.now().year)
 
+# User role choices
+USER_ROLE_CHOICES = [
+    ('owner', 'Owner'),
+    ('contributor', 'Contributor'),
+]
+
 
 class UserManager(BaseUserManager):
     use_in_migrations = True
@@ -150,6 +156,14 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
         _('allow newsletters'), null=True, default=None, help_text=_('Allow sending newsletters to user')
     )
 
+    role = models.CharField(
+        _('user role'),
+        max_length=20,
+        choices=USER_ROLE_CHOICES,
+        default='owner',
+        help_text=_('User role in the organization')
+    )
+
     objects = UserManager()
 
     EMAIL_FIELD = 'email'
@@ -238,6 +252,10 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
         elif self.first_name and self.last_name:
             initials = self.first_name[0:1] + self.last_name[0:1]
         return initials
+
+    def get_pretty_role(self):
+        """Return the display name for the user's role."""
+        return dict(USER_ROLE_CHOICES).get(self.role, self.role.title())
 
 
 @receiver(post_save, sender=User)

@@ -85,6 +85,7 @@ def user_signup(request):
                 'token': token,
                 'found_us_options': forms.FOUND_US_OPTIONS,
                 'elaborate': forms.FOUND_US_ELABORATE,
+                'role_options': forms.USER_ROLE_OPTIONS,
             },
         )
 
@@ -96,6 +97,9 @@ def user_signup(request):
             'organization_form': organization_form,
             'next': quote(next_page),
             'token': token,
+            'found_us_options': forms.FOUND_US_OPTIONS,
+            'elaborate': forms.FOUND_US_ELABORATE,
+            'role_options': forms.USER_ROLE_OPTIONS,
         },
     )
 

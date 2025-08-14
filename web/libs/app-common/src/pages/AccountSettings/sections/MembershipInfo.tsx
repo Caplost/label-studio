@@ -59,6 +59,9 @@ export const MembershipInfo = () => {
         case "NO":
           role = "Pending";
           break;
+        case "CO":
+          role = "Contributor";
+          break;
       }
 
       return {

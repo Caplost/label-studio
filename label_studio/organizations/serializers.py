@@ -63,6 +63,7 @@ class OrganizationMemberListSerializer(DynamicFieldsMixin, serializers.ModelSeri
 class OrganizationMemberSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     annotations_count = serializers.SerializerMethodField(read_only=True)
     contributed_projects_count = serializers.SerializerMethodField(read_only=True)
+    role = serializers.SerializerMethodField(read_only=True)
 
     def get_annotations_count(self, member):
         org = self.context.get('organization')
@@ -72,9 +73,23 @@ class OrganizationMemberSerializer(DynamicFieldsMixin, serializers.ModelSerializ
         org = self.context.get('organization')
         return member.user.annotations.filter(project__organization=org).values('project').distinct().count()
 
+    def get_role(self, member):
+        """Map User.role to frontend expected role codes"""
+        # If user is organization owner, always return 'OW' 
+        if member.is_owner:
+            return 'OW'
+        
+        # Map our User.role values to frontend codes
+        user_role = getattr(member.user, 'role', 'owner')
+        role_mapping = {
+            'owner': 'OW',        # Owner
+            'contributor': 'CO',  # Contributor
+        }
+        return role_mapping.get(user_role, 'OW')  # Default to Owner
+
     class Meta:
         model = OrganizationMember
-        fields = ['user', 'organization', 'contributed_projects_count', 'annotations_count', 'created_at']
+        fields = ['user', 'organization', 'contributed_projects_count', 'annotations_count', 'created_at', 'role']
 
 
 class OrganizationInviteSerializer(serializers.Serializer):
