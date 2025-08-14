@@ -1,12 +1,53 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button, Switch } from "@humansignal/ui";
-import { Label } from "../../components/Form";
 import { Spinner } from "../../components/Spinner/Spinner";
 import { ErrorWrapper } from "../../components/Error/Error";
 import { useAPI } from "../../providers/ApiProvider";
 import { useCurrentUser } from "../../providers/CurrentUser";
 import { useProject } from "../../providers/ProjectProvider";
 import { cn } from "../../utils/bem";
+
+// Try different import paths for UI components
+let Switch, Label, Button;
+try {
+  const UI = require("@humansignal/ui");
+  Switch = UI.Switch;
+  Button = UI.Button;
+  console.log('✅ Imported Switch and Button from @humansignal/ui:', { Switch: typeof Switch, Button: typeof Button });
+} catch (err) {
+  console.error('❌ Failed to import from @humansignal/ui:', err);
+}
+
+try {
+  const Form = require("../../components/Form");
+  Label = Form.Label;
+  console.log('✅ Imported Label from components/Form:', { Label: typeof Label });
+} catch (err) {
+  console.error('❌ Failed to import Label from components/Form:', err);
+  // Fallback to a simple div-based Label
+  Label = ({ description }) => <div style={{ marginBottom: 16, color: "#666" }}>{description}</div>;
+}
+
+// Fallback Switch component if import fails
+if (!Switch || typeof Switch !== 'function') {
+  console.warn('⚠️ Switch component not available, using fallback');
+  Switch = ({ checked, disabled, onChange, size }) => (
+    <button
+      type="button"
+      onClick={onChange}
+      disabled={disabled}
+      style={{
+        padding: '4px 8px',
+        border: '1px solid #ccc',
+        borderRadius: '4px',
+        backgroundColor: checked ? '#007bff' : '#fff',
+        color: checked ? '#fff' : '#000',
+        cursor: disabled ? 'not-allowed' : 'pointer'
+      }}
+    >
+      {checked ? 'ON' : 'OFF'}
+    </button>
+  );
+}
 
 export const Contributors = () => {
   // ✅ All hooks must be at the top level (React Rules of Hooks)
@@ -33,10 +74,10 @@ export const Contributors = () => {
 
   // Check if API configuration exists
   console.log('🔧 API Configuration Check:', {
-    hasGetProjectContributors: !!api?.config?.getProjectContributors,
-    hasAddProjectMember: !!api?.config?.addProjectMember,
-    hasRemoveProjectMember: !!api?.config?.removeProjectMember,
-    apiConfigSample: Object.keys(api?.config || {}).slice(0, 5)
+    apiType: typeof api,
+    hasCallApi: typeof api?.callApi === 'function',
+    apiKeys: api ? Object.keys(api).slice(0, 5) : [],
+    configKeys: api?.config ? Object.keys(api.config).slice(0, 10) : []
   });
 
   const loadContributors = useCallback(async () => {
@@ -182,12 +223,23 @@ export const Contributors = () => {
   console.log('🎨 Rendering Contributors content:', {
     contributorsCount: contributors.length,
     hasError: !!error,
-    contributorsList: contributors.map(c => ({
-      id: c.user?.id,
-      email: c.user?.email,
-      role: c.role,
-      is_member: c.is_member
+    contributorsList: contributors.map((c, index) => ({
+      index,
+      id: c?.user?.id,
+      email: c?.user?.email,
+      role: c?.role,
+      is_member: c?.is_member,
+      hasUser: !!c?.user,
+      rawContributor: c
     }))
+  });
+
+  // Validate components before rendering
+  console.log('🧩 Component Validation:', {
+    SwitchComponent: typeof Switch,
+    SpinnerComponent: typeof Spinner,
+    ErrorWrapperComponent: typeof ErrorWrapper,
+    LabelComponent: typeof Label
   });
 
   return (
@@ -225,7 +277,24 @@ export const Contributors = () => {
             <span>Access</span>
           </div>
           
-          {contributors.map((contributor) => {
+          {(() => {
+            try {
+              return contributors.map((contributor, index) => {
+            console.log(`🎯 Rendering contributor ${index}:`, {
+              contributor,
+              hasUser: !!contributor?.user,
+              userId: contributor?.user?.id,
+              userEmail: contributor?.user?.email,
+              role: contributor?.role,
+              isMember: contributor?.is_member
+            });
+
+            // Safety check - skip if contributor data is invalid
+            if (!contributor || !contributor.user || !contributor.user.id) {
+              console.warn(`⚠️ Skipping invalid contributor at index ${index}:`, contributor);
+              return null;
+            }
+
             const isUpdating = updating.has(contributor.user.id);
             
             return (
@@ -244,7 +313,7 @@ export const Contributors = () => {
               >
                 <div>
                   <div style={{ fontWeight: "500" }}>
-                    {contributor.user.email}
+                    {contributor.user.email || 'No email'}
                   </div>
                   {(contributor.user.first_name || contributor.user.last_name) && (
                     <div style={{ fontSize: "0.9em", color: "#666" }}>
@@ -258,13 +327,13 @@ export const Contributors = () => {
                   color: "#666",
                   fontSize: "0.9em"
                 }}>
-                  {contributor.role}
+                  {contributor.role || 'Unknown'}
                 </div>
                 
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {isUpdating && <Spinner size={16} />}
                   <Switch
-                    checked={contributor.is_member}
+                    checked={!!contributor.is_member}
                     disabled={isUpdating}
                     onChange={() => handleToggleContributor(contributor.user.id, contributor.is_member)}
                     size="small"
@@ -279,7 +348,18 @@ export const Contributors = () => {
                 </div>
               </div>
             );
-          })}
+              }).filter(Boolean);
+            } catch (error) {
+              console.error('❌ Error rendering contributors list:', error);
+              return (
+                <div style={{ padding: 20, color: '#dc3545', textAlign: 'center' }}>
+                  Error rendering contributors list: {error.message}
+                  <br />
+                  <small>Please check console for details</small>
+                </div>
+              );
+            }
+          })()}
         </div>
       )}
       
