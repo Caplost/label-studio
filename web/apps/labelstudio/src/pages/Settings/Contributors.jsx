@@ -36,13 +36,10 @@ export const Contributors = () => {
       setLoading(true);
       setError(null);
       
-      console.log('Loading contributors for project:', project.id);
-      
       const response = await api.callApi("getProjectContributors", {
         params: { pk: project.id }
       });
       
-      console.log('Contributors API response:', response);
       setContributors(response || []);
     } catch (err) {
       console.error("Failed to load contributors:", err);
@@ -50,23 +47,24 @@ export const Contributors = () => {
     } finally {
       setLoading(false);
     }
-  }, [api, project?.id]);
+  }, [project?.id]);
 
   useEffect(() => {
     loadContributors();
   }, [loadContributors]);
 
   const handleToggleContributor = useCallback(async (contributorUserId, currentStatus) => {
+    if (!project?.id) return;
+    
     setUpdating(prev => new Set(prev).add(contributorUserId));
     
     try {
       if (currentStatus) {
         // Remove contributor from project
-        // The API should handle finding the membership by user_id
         await api.callApi("removeProjectMember", {
           params: { 
             pk: project.id,
-            member_pk: contributorUserId  // Use user_id directly
+            member_pk: contributorUserId
           }
         });
       } else {
@@ -77,8 +75,12 @@ export const Contributors = () => {
         });
       }
       
-      // Reload contributors list
-      await loadContributors();
+      // Reload contributors list directly
+      const response = await api.callApi("getProjectContributors", {
+        params: { pk: project.id }
+      });
+      setContributors(response || []);
+      
     } catch (err) {
       console.error("Failed to update contributor:", err);
       setError("Failed to update contributor access. Please try again.");
@@ -89,7 +91,7 @@ export const Contributors = () => {
         return newSet;
       });
     }
-  }, [api, project?.id, loadContributors]);
+  }, [project?.id]);
 
   if (loading) {
     return (
