@@ -952,16 +952,22 @@ class ProjectContributorListAPI(GetParentObjectMixin, generics.ListAPIView):
         project = self.parent_object
         organization = project.organization
         
-        # Get all contributors in the organization
+        # Get all contributors in the organization using the correct relationship
         from users.models import User
-        contributors = User.objects.filter(
-            role='contributor',
-            organizations__organization=organization
-        )
+        from organizations.models import OrganizationMember
         
-        # Annotate with membership status
+        # Get contributor user IDs from organization members
+        contributor_user_ids = OrganizationMember.objects.filter(
+            organization=organization,
+            user__role='contributor',
+            deleted_at__isnull=True  # Only active members
+        ).values_list('user_id', flat=True)
+        
+        # Get users and annotate with project membership status
         from django.db.models import Case, When, Value, BooleanField
-        contributors_with_membership = contributors.annotate(
+        contributors = User.objects.filter(
+            id__in=contributor_user_ids
+        ).annotate(
             is_member=Case(
                 When(
                     project_memberships__project=project,
@@ -971,27 +977,36 @@ class ProjectContributorListAPI(GetParentObjectMixin, generics.ListAPIView):
                 default=Value(False),
                 output_field=BooleanField()
             )
-        )
+        ).distinct()
         
-        return contributors_with_membership
+        return contributors
 
     def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        serializer_data = []
-        
-        for user in queryset:
-            serializer_data.append({
-                'user': {
-                    'id': user.id,
-                    'email': user.email,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                },
-                'is_member': user.is_member,
-                'role': user.role
-            })
-        
-        return Response(serializer_data)
+        try:
+            queryset = self.get_queryset()
+            serializer_data = []
+            
+            for user in queryset:
+                serializer_data.append({
+                    'user': {
+                        'id': user.id,
+                        'email': user.email,
+                        'first_name': user.first_name,
+                        'last_name': user.last_name,
+                    },
+                    'is_member': getattr(user, 'is_member', False),
+                    'role': user.role
+                })
+            
+            return Response(serializer_data)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in ProjectContributorListAPI: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch contributors', 'detail': str(e)}, 
+                status=500
+            )
 
 
 class ProjectMemberListAPI(GetParentObjectMixin, generics.ListCreateAPIView):

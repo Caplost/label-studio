@@ -36,14 +36,17 @@ export const Contributors = () => {
       setLoading(true);
       setError(null);
       
+      console.log('Loading contributors for project:', project.id);
+      
       const response = await api.callApi("getProjectContributors", {
         params: { pk: project.id }
       });
       
+      console.log('Contributors API response:', response);
       setContributors(response || []);
     } catch (err) {
       console.error("Failed to load contributors:", err);
-      setError("Failed to load contributors. Please try again.");
+      setError(`Failed to load contributors: ${err.message || err}`);
     } finally {
       setLoading(false);
     }
@@ -112,7 +115,10 @@ export const Contributors = () => {
 
       {contributors.length === 0 ? (
         <div style={{ marginTop: 24, padding: 20, textAlign: "center", color: "#666" }}>
-          No contributors found in your organization.
+          <p>No contributors found in your organization.</p>
+          <p style={{ fontSize: "0.9em", marginTop: 10 }}>
+            To add contributors, first create users with "Contributor" role in your organization.
+          </p>
         </div>
       ) : (
         <div style={{ marginTop: 24 }}>
